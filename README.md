@@ -82,6 +82,9 @@ kvsim pd-bandwidth --model llama-3.1-70b --seq-len 4096 --gpu h100 --network-bw 
 
 # 多序列长度对比
 kvsim pd-bandwidth --model llama-3.1-70b --seq-len 1024,4096,16384,131072 --gpu h100
+
+# 支持单位写法（不区分大小写）：1k / 1kb / 2m / 2mb
+kvsim pd-bandwidth --model llama-3.1-70b --seq-len 1k,2MB --gpu h100
 ```
 
 输出示例：
@@ -129,6 +132,9 @@ kvsim offload --model llama-3.1-70b --seq-len 4096 --gpu h100 --phase prefill
 
 # Decode 阶段（通常不可行 — 计算量太少，无法掩盖传输延迟）
 kvsim offload --model llama-3.1-70b --seq-len 4096 --gpu h100 --phase decode --context-len 4096
+
+# offload 也支持单位写法
+kvsim offload --model llama-3.1-70b --seq-len 4k --gpu h100 --phase decode --context-len 4KB
 ```
 
 输出示例（Decode 阶段）：
@@ -192,7 +198,7 @@ kvsim list-gpus      # 列出所有内置 GPU 预设
 |------|------|------|
 | `--model` | `-m` | 内置模型预设名称 |
 | `--config` | `-c` | HuggingFace config.json 路径（与 `--model` 二选一） |
-| `--seq-len` | `-s` | 序列长度，部分命令支持逗号分隔多个值 |
+| `--seq-len` | `-s` | 序列长度，支持 `1k/1kb/2m/2mb`（不区分大小写）；`memory/pd-bandwidth` 支持逗号分隔多个值 |
 | `--dtype` | `-d` | 数据类型：fp16 / bf16 / fp8 / int8 / int4（默认 fp16） |
 | `--gpu` | `-g` | GPU 预设名称（默认 h100） |
 | `--utilization` | `-u` | 算力利用率 0~1（默认 0.5） |
