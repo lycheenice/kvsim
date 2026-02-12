@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 import typer
@@ -42,7 +43,22 @@ app = typer.Typer(
 def _parse_seq_lens(value: str) -> list[int]:
     """解析逗号分隔的序列长度列表。"""
     parts = [p.strip() for p in value.split(",")]
-    return [int(p) for p in parts if p]
+    return [_parse_seq_len_token(p) for p in parts if p]
+
+
+def _parse_seq_len_token(value: str) -> int:
+    """解析单个序列长度，支持 k/m/g 单位（可选 b 后缀）。"""
+    token = value.strip()
+    match = re.fullmatch(r"(\d+)\s*([kmg]?)(b?)", token, flags=re.IGNORECASE)
+    if not match:
+        raise typer.BadParameter(
+            f"无效的序列长度: {value!r}。支持如 4096, 1k, 1kb, 2m, 2mb。"
+        )
+
+    number = int(match.group(1))
+    unit = match.group(2).lower()
+    multiplier = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[unit]
+    return number * multiplier
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +127,8 @@ def cmd_pd_bandwidth(
 def cmd_offload(
     model: Optional[str] = typer.Option(None, "--model", "-m", help="内置模型预设名称"),
     config: Optional[str] = typer.Option(None, "--config", "-c", help="HuggingFace config.json 路径"),
-    seq_len: int = typer.Option(4096, "--seq-len", "-s", help="序列长度"),
-    context_len: Optional[int] = typer.Option(None, "--context-len", help="Decode 上下文长度, 默认等于 seq-len"),
+    seq_len: str = typer.Option("4096", "--seq-len", "-s", help="序列长度, 支持 1k/2m/1g 等写法"),
+    context_len: Optional[str] = typer.Option(None, "--context-len", help="Decode 上下文长度, 默认等于 seq-len，支持 1k/2m/1g 等写法"),
     gpu: str = typer.Option("h100", "--gpu", "-g", help="GPU 预设名称"),
     dtype: str = typer.Option("fp16", "--dtype", "-d", help="数据类型"),
     utilization: float = typer.Option(0.5, "--utilization", "-u", help="算力利用率 (0-1)"),
@@ -121,10 +137,12 @@ def cmd_offload(
     """估算 KV Cache Offload (GPU→CPU) 的最低 PCIe 带宽需求。"""
     model_cfg = resolve_model(model, config)
     gpu_cfg = resolve_gpu(gpu)
+    parsed_seq_len = _parse_seq_len_token(seq_len)
+    parsed_context_len = _parse_seq_len_token(context_len) if context_len is not None else None
 
     result = compute_offload_bandwidth(
-        model_cfg, gpu_cfg, seq_len,
-        context_len=context_len,
+        model_cfg, gpu_cfg, parsed_seq_len,
+        context_len=parsed_context_len,
         dtype=dtype,
         utilization=utilization,
         phase=phase,
